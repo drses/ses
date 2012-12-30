@@ -1,0 +1,228 @@
+<!DOCTYPE HTML>
+
+<!--
+ - Copyright (C) 2011 Google Inc.
+ -
+ - Licensed under the Apache License, Version 2.0 (the "License");
+ - you may not use this file except in compliance with the License.
+ - You may obtain a copy of the License at
+ -
+ -      http://www.apache.org/licenses/LICENSE-2.0
+ -
+ - Unless required by applicable law or agreed to in writing, software
+ - distributed under the License is distributed on an "AS IS" BASIS,
+ - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ - See the License for the specific language governing permissions and
+ - limitations under the License.
+-->
+
+<html>
+<head>
+<title>Testing SES/5</title>
+<style type="text/css">
+.log { color: black; }
+.info { color: navy; }
+.warn { color: olive; }
+.error { color: maroon; }
+.reports-text p { margin-top: 0.05em; margin-bottom: 0.05em; }
+.console-text p { margin-top: 0.05em; margin-bottom: 0.05em; }
+</style>
+</head>
+<body>
+<div id="reports" class="reports-text"><b>Repair Reports</b></div>
+<div id="console" class="console-text"><hr></div>
+<div id="exprTest">exprTest...</div>
+<div id="moduleTest">moduleTest...</div>
+<div id="scriptTest">scriptTest...</div>
+<div id="amdLoaderTest">AMD loader test...</div>
+
+<script src="useHTMLLogger.js"></script>
+<script>
+  /*console.profile('explicit SES init');*/
+  function gebi(id) {
+    return document.getElementById(id);
+  };
+  useHTMLLogger(gebi("reports"), gebi("console"));
+  // This severity is too high for any use other than development.
+  ses.maxAcceptableSeverityName = 'NEW_SYMPTOM';
+</script>
+<!--
+The <script src=... tags below, from "logger.js" to "hookupSESPlus.js", is
+  equivalent to <script src="initSESPlus.js"></script>, but is more
+  pleasant to debug.
+
+The <script src="useHTMLLogger.js"> and the inline script above advises
+  the scripts below, overriding the default logger, and overriding the
+  default maxAcceptableSeverityName.
+-->
+<script src="logger.js"></script>
+<script src="repairES5.js"></script>
+<script src="WeakMap.js"></script>
+<script src="debug.js"></script>
+<script src="StringMap.js"></script>
+<script src="whitelist.js"></script>
+<script src="atLeastFreeVarNames.js"></script>
+<script src="startSES.js"></script>
+<script src="ejectorsGuardsTrademarks.js"></script>
+<script src="hookupSESPlus.js"></script>
+
+<script>
+  var amdLoaderTest = gebi('amdLoaderTest');
+  function appendText(node, text) {
+    "use strict";
+    node.appendChild(document.createTextNode(text));
+  }
+  (function() {
+    "use strict";
+    var exprTest = gebi('exprTest');
+    var moduleTest = gebi('moduleTest');
+    var scriptTest = gebi('scriptTest');
+    if (!ses.ok()) {
+      appendText(exprTest, 'cancelled');
+      appendText(moduleTest, 'cancelled');
+      appendText(scriptTest, 'cancelled');
+      appendText(amdLoaderTest, 'cancelled');
+      return;
+    }
+
+    var imports = cajaVM.makeImports();
+    cajaVM.copyToImports(imports, {window: 6});
+
+    var output = cajaVM.eval('3+4') * cajaVM.compileExpr('window')(imports);
+    var text1 = output === 42 ? 'succeeded' : 'failed: ' + output;
+    appendText(exprTest, text1);
+
+    // Test ability to bootstrap support for a limited form of
+    // CommonJS modules.
+    var modSrc = '"use noise"; exports.x = \n' +
+                 'require("foo.bar/baz"); return 77;';
+    var modMaker = cajaVM.compileModule(modSrc);
+    var required = modMaker.requirements;
+    var exported = {};
+    var returned = modMaker(cajaVM.copyToImports(imports, {
+      require: function(id) { return { foo: 88, id: id}; },
+      exports: exported
+    }));
+    var did = JSON.stringify(cajaVM.def({
+      required: required,
+      exported: exported,
+      returned: returned
+    }), void 0, ' ');
+    var should = JSON.stringify({
+      "required": [ "foo.bar/baz" ],
+      "exported": { "x": { "foo": 88, "id": "foo.bar/baz" } },
+      "returned": 77
+    }, void 0, ' ');
+    var text2 = did === should ? 'succeeded' : 'failed: ' + did;
+    appendText(moduleTest, text2);
+
+    // Tests the ability to do inter-module linkage as scripts
+    // traditionally did, by modification of (virtual) shared
+    // globals. Unfortunately, rather than say "var x = 88;" below, we
+    // must say "this.x = 88;" in order to export a global.
+    cajaVM.compileModule('this.x = 88;')(imports);
+    var text3 = cajaVM.compileExpr('x')(imports) === 88 ?
+      'succeeded' : 'failed';
+    appendText(scriptTest, text3);
+
+  })();
+</script>
+
+<script src="makeQ.js"></script>
+<script src="makeFarResourceMaker.js"></script>
+<script src="compileExprLater.js"></script>
+<script>
+  var Q;
+  (function() {
+    "use strict";
+
+    if (!ses.ok()) { return; }
+
+    /* TODO(erights): Extract the reusable boilerplate below into a
+       reusable abstraction. */
+
+    function mySetTimeout(func, millis) {
+      return setTimeout(function() {
+        try {
+          func();
+        } catch (reason) {
+          ses.logger.log('uncaught: ', reason);
+        }
+      }, millis);
+    }
+    Q = ses.makeQ(mySetTimeout);
+
+    var makeTextResource = ses.makeFarResourceMaker();
+
+    var url = './makeSimpleAMDLoader.js';
+    var makeSimpleAMDLoaderFileP = makeTextResource(url);
+    var makeSimpleAMDLoaderSrcP = makeSimpleAMDLoaderFileP.get();
+
+    /* We really are evaluating makeSimpleAMDModuleLoader with least
+       authority. Even though there's a global compileExprLater, if
+       you don't provide it here, makeSimpleAMDModuleLoader will
+       fail. */
+    var imports = cajaVM.makeImports();
+    cajaVM.copyToImports(imports, {
+      Q: Q,
+      compileExprLater: ses.compileExprLater
+    });
+
+    var makeSimpleAMDLoaderP = Q(makeSimpleAMDLoaderSrcP).when(function(src) {
+      var exprSrc = '(function() {' + src + '}).call(this)';
+      var compiledExprP = ses.compileExprLater(exprSrc, url);
+      return Q(compiledExprP).when(function(compiledExpr) {
+        compiledExpr(imports);
+        return imports.makeSimpleAMDLoader;
+      });
+    });
+
+
+    /**
+     * What we should do is accept any legal module identifier according
+     * to the AMD definition and encode it into a legal URL. Instead,
+     * for now, we just conservatively accept an ascii subset of both
+     * that does not need any encoding.
+     *
+     * See https://github.com/amdjs/amdjs-api/wiki/AMD#wiki-define-id-notes
+     */
+    var isModuleId = Object.freeze(/^[a-zA-Z0-9_/]*$/);
+
+    function fetch(id) {
+      if (!isModuleId.test(id)) {
+        throw new Error('illegal module id: ' + id);
+      }
+      return makeTextResource('./' + id + '.js').get();
+    }
+
+    var moduleMap = StringMap();
+    moduleMap.set('Q', Q);
+    var loaderP = Q(makeSimpleAMDLoaderP).send(void 0, fetch, moduleMap);
+    var amdTestP = Q(loaderP).send(void 0, 'amdTest');
+    Q(amdTestP).when(function(amdTest) {
+      var amdTestStatus = amdTest === 'this is a test' ?
+        'succeeded' : 'failed, unexpected: ' + amdTest;
+      /*console.profileEnd();*/
+      appendText(amdLoaderTest, amdTestStatus);
+    }, function(reason) {
+      /*console.profileEnd();*/
+      appendText(amdLoaderTest, 'failed: ' + reason);
+    }).end();
+  })();
+</script>
+
+<p>
+Using <span id="browserName">unknown</span>
+ <span id="browserVersion">unknown</span>
+on <span id="browserOS">unknown</span>
+<script src="detect.js"></script>
+<script>
+  (function(){
+    "use strict"
+    gebi('browserName').textContent = BrowserDetect.browser;
+    gebi('browserVersion').textContent = BrowserDetect.version;
+    gebi('browserOS').textContent = BrowserDetect.OS;
+  })();
+</script>
+</body>
+</html>
