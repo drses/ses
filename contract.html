@@ -90,6 +90,7 @@ The <script src="useHTMLLogger.js"> and the inline script above advises
 
     var imports = cajaVM.makeImports();
     cajaVM.copyToImports(imports, {window: 6});
+    // NOTE: do not cajaVM.def(imports) for this test
 
     var output = cajaVM.eval('3+4') * cajaVM.compileExpr('window')(imports);
     var text1 = output === 42 ? 'succeeded' : 'failed: ' + output;
@@ -102,10 +103,13 @@ The <script src="useHTMLLogger.js"> and the inline script above advises
     var modMaker = cajaVM.compileModule(modSrc);
     var required = modMaker.requirements;
     var exported = {};
-    var returned = modMaker(cajaVM.copyToImports(imports, {
+    cajaVM.copyToImports(imports, {
       require: function(id) { return { foo: 88, id: id}; },
       exports: exported
-    }));
+    });
+    // NOTE: do not cajaVM.def(imports) for this test
+
+    var returned = modMaker(imports);
     var did = JSON.stringify(cajaVM.def({
       required: required,
       exported: exported,
@@ -171,11 +175,13 @@ The <script src="useHTMLLogger.js"> and the inline script above advises
       Q: Q,
       compileExprLater: ses.compileExprLater
     });
+    // NOTE: do not cajaVM.def(imports) for evaluating the
+    // simple AMD loader.
 
-    var makeSimpleAMDLoaderP = Q(makeSimpleAMDLoaderSrcP).when(function(src) {
+    var makeSimpleAMDLoaderP = Q(makeSimpleAMDLoaderSrcP).then(function(src) {
       var exprSrc = '(function() {' + src + '}).call(this)';
       var compiledExprP = ses.compileExprLater(exprSrc, url);
-      return Q(compiledExprP).when(function(compiledExpr) {
+      return Q(compiledExprP).then(function(compiledExpr) {
         compiledExpr(imports);
         return imports.makeSimpleAMDLoader;
       });
@@ -201,10 +207,9 @@ The <script src="useHTMLLogger.js"> and the inline script above advises
 
     var moduleMap = StringMap();
     moduleMap.set('Q', Q);
-    moduleMap.set('def', cajaVM.def);
     var loaderP = Q(makeSimpleAMDLoaderP).send(void 0, fetch, moduleMap);
     var amdTestP = Q(loaderP).send(void 0, 'amdTest');
-    Q(amdTestP).when(function(amdTest) {
+    Q(amdTestP).then(function(amdTest) {
       var amdTestStatus = amdTest === 'this is a test' ?
         'succeeded' : 'failed, unexpected: ' + amdTest;
       /*console.profileEnd();*/
@@ -215,10 +220,10 @@ The <script src="useHTMLLogger.js"> and the inline script above advises
     }).end();
 
     var cTestP = Q(loaderP).send(void 0, 'contractTest');
-    Q(cTestP).when(function(cTest) {
-      appendText(contractTest, 'ok');
+    Q(cTestP).then(function(cTest) {
+      appendText(contractTest, 'ok: ' + cTest);
     }, function(reason) {
-      appendText(contractTest, 'oops');
+      appendText(contractTest, 'oops: ' + reason);
     }).end();
 
   })();

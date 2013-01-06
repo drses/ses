@@ -12,35 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-function makeMint() {
-  function Nat(allegedNum) {
-    if (typeof allegedNum !== 'number') { throw new Error("not a number"); }
-    if (allegedNum !== allegedNum) { throw new Error("number not a number"); }
-    if (allegedNumber < 0)         { throw new Error("negative"); }
-    if (allegedNumber % 1 !== 0)   { throw new Error("not integral"); }
-    if (allegedNumber > MAX_NAT)   { throw new Error("too big"); }
-    return allegedNum;
-  }
+define('contract/makeMint', [], function() {
+  "use strict";
+  var def = cajaVM.def;
+  var Nat = cajaVM.Nat;
 
-  var amp = WeakMap();
-  return function mint(balance) {
-    var purse = def({
-      getBalance: function() { return balance; },
-      makePurse: function() { return mint(0); },
-      deposit: function(amount, src) {
-        Nat(balance + amount);
-        amp.get(src)(Nat(amount));
-        balance += amount;
+  return function makeMint() {
+  
+    var amp = WeakMap();
+    function makePurse() { return mint(0); }
+
+    return def(function mint(balance) {
+      var purse = def({
+        getBalance: function() { return balance; },
+        makePurse: makePurse,
+        deposit: function(amount, src) {
+          Nat(balance + amount);
+          amp.get(src)(Nat(amount));
+          balance += amount;
+        }
+      });
+      function decr(amount) {
+        balance = Nat(balance - amount);
       }
+      amp.set(purse, decr);
+      return purse;
     });
-    function decr(amount) {
-      balance = Nat(balance - amount);
-    }
-    amp.set(purse, decr);
-    return purse;
-  };
-}
-
-function makePurseMaker(purse) {
-  return function makePurse() { return purse.makePurse(); };
-}
+  }
+});

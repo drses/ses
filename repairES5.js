@@ -208,7 +208,7 @@ var ses;
    * be adequately repairable, or otherwise falling back to Caja's
    * ES5/3 translator.
    */
-  ses.maxAcceptableSeverityName =
+  ses.maxAcceptableSeverityName = 
     validateSeverityName(ses.maxAcceptableSeverityName);
   ses.maxAcceptableSeverity = ses.severities[ses.maxAcceptableSeverityName];
 
@@ -1542,7 +1542,7 @@ var ses;
   }
   /**
    * Detects http://code.google.com/p/v8/issues/detail?id=2396
-   *
+   * 
    * <p>Commenting out the eval does the right thing.  Only fails in
    * non-strict mode.
    */
@@ -1717,24 +1717,24 @@ var ses;
     return false;
   }
 
-  /**
-   * In Firefox 15+, Object.freeze and Object.isFrozen only work for
-   * descendents of that same Object.
-   */
-  function test_FIREFOX_15_FREEZE_PROBLEM() {
+  /**		
+   * In Firefox 15+, Object.freeze and Object.isFrozen only work for		
+   * descendents of that same Object.		
+   */		
+  function test_FIREFOX_15_FREEZE_PROBLEM() {		
     if (typeof document === 'undefined' ||
        typeof document.createElement !== 'function') {
       // likely not a browser environment
       return false;
     }
-    var iframe = document.createElement('iframe');
-    var where = document.getElementsByTagName('script')[0];
-    where.parentNode.insertBefore(iframe, where);
-    var otherObject = iframe.contentWindow.Object;
-    where.parentNode.removeChild(iframe);
-    var obj = {};
-    otherObject.freeze(obj);
-    return !Object.isFrozen(obj);
+    var iframe = document.createElement('iframe');		
+    var where = document.getElementsByTagName('script')[0];		
+    where.parentNode.insertBefore(iframe, where);		
+    var otherObject = iframe.contentWindow.Object;		
+    where.parentNode.removeChild(iframe);		
+    var obj = {};		
+    otherObject.freeze(obj);		
+    return !Object.isFrozen(obj);		
   }
 
   /**
@@ -2207,7 +2207,7 @@ var ses;
   function repair_NEED_TO_WRAP_FOREACH() {
     Object.defineProperty(Array.prototype, 'forEach', {
       // Taken from https://developer.mozilla.org/en-US/docs/JavaScript/Reference/Global_Objects/Array/forEach
-      value: function(callback, thisArg) {
+      value: function(callback, thisArg) { 
         var T, k;
         if (this === null || this === undefined) {
           throw new TypeError("this is null or not defined");

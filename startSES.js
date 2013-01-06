@@ -81,8 +81,9 @@ var Function;
  *
  * <p>Under server-side Caja translation for old pre-ES5 browsers, the
  * synchronous interface of the evaluation APIs (currently {@code
- * eval, Function, cajaVM.{compileExpr, compileModule, eval, Function}})
- * cannot reasonably be provided. Instead, under translation we expect
+ * eval, Function, cajaVM.{compileExpr, confine, compileModule, eval,
+ * Function}}) cannot reasonably be provided. Instead, under
+ * translation we expect
  * <ul>
  * <li>Not to have a binding for {@code "eval"} on
  *     {@code sharedImports}, just as we would not if
@@ -97,9 +98,9 @@ var Function;
  * <li>The {@code Q} API to always be available, to handle
  *     asynchronous, promise, and remote requests.
  * <li>The evaluating methods on {@code cajaVM} -- currently {@code
- *     compileExpr, compileModule, eval, and Function} -- to be remote
- *     promises for their normal interfaces, which therefore must be
- *     invoked with {@code Q.post}.
+ *     compileExpr, confine, compileModule, eval, and Function} -- to
+ *     be remote promises for their normal interfaces, which therefore
+ *     must be invoked with {@code Q.post}.
  * <li>Since {@code Q.post} can be used for asynchronously invoking
  *     non-promises, invocations like
  *     {@code Q.post(cajaVM, 'eval', ['2+3'])}, for example,
@@ -376,6 +377,19 @@ ses.startSES = function(global,
    */
   var sharedImports = create(null);
 
+  var MAX_NAT = Math.pow(2,52); // Is this right?
+  function Nat(allegedNum) {
+    if (typeof allegedNum !== 'number') { 
+      throw new RangeError("not a number"); 
+    }
+    if (allegedNum !== allegedNum) { throw new RangeError("NaN not natural"); }
+    if (allegedNumber < 0)         { throw new RangeError("negative"); }
+    if (allegedNumber % 1 !== 0)   { throw new RangeError("not integral"); }
+    if (allegedNumber > MAX_NAT)   { throw new RangeError("too big"); }
+    return allegedNum;
+  }
+
+
   (function startSESPrelude() {
 
     /**
@@ -443,7 +457,7 @@ ses.startSES = function(global,
      * traditional JavaScript intermodule linkage by side effects to a
      * shared (virtual) global object.
      *
-     * <p>See {@code copyToImports} for the precise semantic of the
+     * <p>See {@code copyToImports} for the precise semantics of the
      * property copying.
      */
     function makeImports() {
@@ -532,6 +546,7 @@ ses.startSES = function(global,
             set: function scopedSet(newValue) {
               if (name in imports) {
                 imports[name] = newValue;
+                return;
               }
               throw new TypeError('Cannot set "' + name + '"');
             },
@@ -637,6 +652,26 @@ ses.startSES = function(global,
       var freeNames = atLeastFreeVarNames(exprSrc);
       var result = makeCompiledExpr(wrapper, freeNames);
       return freeze(result);
+    }
+
+    /**
+     * Evaluate an expression as confined to these endowments.
+     *
+     * <p>Evaluates {@code exprSrc} in a tamper proof ({@code
+     * def()}ed) environment consisting of a copy of the shared
+     * imports and the own properties of {@code opt_endowments} if
+     * provided. Return the value the expression evaluated to. Since
+     * the shared imports provide no abilities to cause effects, the
+     * endowments are the only source of eval-time abilities for the
+     * expr to cause effects.
+     */
+    function confine(exprSrc, opt_endowments, opt_sourcePosition) {
+      var imports = makeImports();
+      if (opt_endowments) {
+        copyToImports(imports, opt_endowments);
+      }
+      def(imports);
+      return compileExpr(exprSrc, opt_sourcePosition)(imports);
     }
 
 
@@ -1023,10 +1058,12 @@ ses.startSES = function(global,
       }),
       tamperProof: constFunc(tamperProof),
       constFunc: constFunc(constFunc),
+      Nat: constFunc(Nat),
       // def: see below
       is: constFunc(ses.is),
 
       compileExpr: constFunc(compileExpr),
+      confine: constFunc(confine),
       compileModule: constFunc(compileModule),
       // compileProgram: compileProgram, // Cannot be implemented in ES5.1.
       eval: fakeEval,               // don't freeze here

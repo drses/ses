@@ -17,8 +17,12 @@
  * @requires define
  */
 
-define(['Q', 'contract/makeContractHost'],
-function(Q, makeContractHostFar) {
+define('contractTest', [
+           'Q', 
+           'contract/makeContractHost', 
+           'contract/makeMint',
+           'contract/escrowExchange'],
+function(Q, makeContractHostFar, makeMintFar, escrowExchangeFar) {
   "use strict";
 
   var contractHostP = Q(makeContractHostFar).send(void 0);
@@ -31,10 +35,8 @@ function(Q, makeContractHostFar) {
   var tokensP = Q(contractHostP).send('setup', contractSrc);
 
   var whiteTokenP = Q(tokensP).get(0);
-  var whiteChairP = Q(contractHostP).send('redeem', whiteTokenP);
-  Q(whiteChairP).send(void 0, contractSrc, 0, {});
+  Q(contractHostP).send('play', whiteTokenP, contractSrc, 0, {});
 
   var blackTokenP = Q(tokensP).get(1);
-  var blackChairP = Q(contractHostP).send('redeem', blackTokenP);
-  return Q(blackChairP).send(void 0, contractSrc, 1, {});
+  return Q(contractHostP).send('play', blackTokenP, contractSrc, 1, {});
 });

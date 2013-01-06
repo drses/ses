@@ -15,13 +15,14 @@
 /**
  * @fileoverview Simple AMD module exports a {@code makeContractHost}
  * function, which makes a contract host, which makes and runs a
- * contract. Requires SES. Specifically, requires the {@code eval}
- * function in scope to be a SES confining eval.
- * @requires WeakMap, define, Q, eval
+ * contract. Requires SES and its simple AMD loader.
+ * @requires define, WeakMap, Q, cajaVM
  * @author Mark S. Miller erights@gmail.com
  */
-define('contract/makeContractHost', ['Q', 'def'], function(Q, def) {
+define('contract/makeContractHost', ['Q'], function(Q) {
   "use strict";
+  var def = cajaVM.def;
+  var confine = cajaVM.confine;
 
   /**
    * A contract host as a mutually trusted third party for honestly
@@ -41,7 +42,7 @@ define('contract/makeContractHost', ['Q', 'def'], function(Q, def) {
    * <p>There are two "roles" for participating in the protocol:
    * contract initiator, who calls the contract host's {@code setup}
    * method, and contract participants, who call the contract host's
-   * {@code redeem} method. For example, let's say the contract in
+   * {@code play} method. For example, let's say the contract in
    * question is the board manager for playing chess. The initiator
    * instantiates a new chess game, whose board manager is a two
    * argument function, where argument zero is provided by the player
@@ -60,8 +61,8 @@ define('contract/makeContractHost', ['Q', 'def'], function(Q, def) {
    *   const tokensP = contractHostP ! setup(chessSrc);
    *   const whiteTokenP = tokensP ! [0];
    *   const blackTokenP = tokensP ! [1];
-   *   whitePlayer ! play(whiteTokenP, chessSrc, 0);
-   *   blackPlayer ! play(blackTokenP, chessSrc, 1);
+   *   whitePlayer ! invite(whiteTokenP, chessSrc, 0);
+   *   blackPlayer ! invite(blackTokenP, chessSrc, 1);
    * </pre>
    *
    * <p>Each player, on receiving the token, alleged game source, and
@@ -75,10 +76,10 @@ define('contract/makeContractHost', ['Q', 'def'], function(Q, def) {
    *
    * <pre>
    *   // Contract participant
-   *   function play(tokenP, allegedChessSrc, allegedSide) {
+   *   function invite(tokenP, allegedChessSrc, allegedSide) {
    *     check(allegedChessSrc, allegedSide);
-   *     const chairP = contractHostP ! redeem(tokenP);
-   *     const outcomeP = chairP ! (allegedChessSrc, allegedSide, player);
+   *     const outcomeP = contractHostP ! 
+   *         play(tokenP, allegedChessSrc, allegedSide, arg);
    *   }
    * </pre>
    */
@@ -87,9 +88,8 @@ define('contract/makeContractHost', ['Q', 'def'], function(Q, def) {
 
     return def({
       setup: function(contractSrc) {
-        contractSrc = String(contractSrc);
-        var contract = Function('Q', 'def', 
-                                'return (' + contractSrc + '\n);')(Q, def);
+        contractSrc = ''+contractSrc;
+        var contract = confine(contractSrc, {Q: Q});
         var result = Q.defer();
         var tokens = [];
         var argPs = [];
@@ -104,6 +104,7 @@ define('contract/makeContractHost', ['Q', 'def'], function(Q, def) {
             if (i !== allegedI) {
               throw new Error('unexpected player number: ' + i);
             }
+            amp.delete(token);
             argPair.resolve(arg);
             return result.promise;
           }));
@@ -112,16 +113,14 @@ define('contract/makeContractHost', ['Q', 'def'], function(Q, def) {
           addParam(i, def({}), Q.defer());
         }
 
-        result.resolve(Q.all(argPs).when(function(args) {
+        result.resolve(Q.all(argPs).then(function(args) {
           return contract.apply(void 0, args);
         }));
         return tokens;
       },
-      redeem: function(tokenP) {
-        return Q(tokenP).when(function(token) {
-          var result = amp.get(token);
-          amp.delete(token);
-          return result;
+      play: function(tokenP, allegedSrc, allegedI, arg) {
+        return Q(tokenP).then(function(token) {
+          return amp.get(token)(allegedSrc, allegedI, arg);
         });
       }
     });

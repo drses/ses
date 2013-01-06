@@ -130,7 +130,7 @@ var ses;
 
      function deleteScriptNode() { script.parentNode.removeChild(script); }
 
-     Q(result.promise).when(deleteScriptNode, deleteScriptNode).end();
+     Q(result.promise).then(deleteScriptNode, deleteScriptNode).end();
 
      return result.promise;
    }
