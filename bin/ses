@@ -1,5 +1,5 @@
-#!/usr/bin/env node
-//
+#!/usr/bin/env node --harmony
+
 var usage = "usage:\n  ses --bootstrap=myenv.js code.js bootstrapFnArgs1 bootstrapFnArgs2"
 
 var FS = require("fs");
