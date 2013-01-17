@@ -56,3 +56,8 @@ var f = cajaVM.compileExpr("console.log('hi')");
 f({console: console});
 ```
 
+Included is a binary runner under the name `ses`
+
+```bash
+ses example/code.js
+```

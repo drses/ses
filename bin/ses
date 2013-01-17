@@ -1,0 +1,27 @@
+#!/usr/bin/env node
+//
+var usage = "usage:\n  ses --bootstrap=myenv.js code.js bootstrapFnArgs1 bootstrapFnArgs2"
+
+var FS = require("fs");
+var PATH = require("path");
+var VM = require("vm");
+var argv = require("optimist").argv;
+
+var source = FS.readFileSync(PATH.join(__dirname, "../initSES.js"));
+var script = new VM.Script(source);
+script.runInThisContext();
+
+var bootstrapFile = argv.b || argv.bootstrap;
+var bootstrapArgs = argv._ && argv._.slice(1);
+
+var codeFile = argv._[0];
+if (!codeFile) {
+  console.error(usage);
+  process.exit(1);
+}
+var code = FS.readFileSync(PATH.resolve(process.cwd(), codeFile));
+
+var runner = cajaVM.compileExpr(code);
+var runnerEnv = bootstrapFile && require(PATH.resolve(process.cwd(), bootstrapFile)).apply(null, bootstrapArgs) || {console:console};
+runner(runnerEnv);
+
