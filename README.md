@@ -48,7 +48,7 @@ This is an example of initializing SES in Node.
 var FS = require("fs");
 var VM = require("vm");
  
-var source = FS.readFileSync("initSes.js");
+var source = FS.readFileSync("initSES.js");
 var script = new VM.Script(source);
 script.runInThisContext();
  
