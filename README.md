@@ -1,6 +1,10 @@
 
 # Secure EcmaScript
 
+**:warning: This is not an official, working packaging of Google
+Caja’s SES.  This is a project attempting to bring SES to Node.js but
+will probably not be viable until Node.js 0.12 at least.**
+
 SES is a tool that allows mutually suspicious programs to share a single
 EcmaScript 5 compliant JavaScript context without interfering with each
 other.  It does this by freezing everything that is accessible in global
@@ -61,3 +65,4 @@ Included is a binary runner under the name `ses`
 ```bash
 ses example/code.js
 ```
+
